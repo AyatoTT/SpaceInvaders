@@ -13,15 +13,22 @@ local score = 0 -- очки игрока
 local lives = 3 -- количество жизней игрока
 local livesText = display.newText("Lives: " .. lives, display.contentWidth - 80, 20, native.systemFont, 20)
 livesText:setFillColor(1, 1, 1) -- установка цвета текста
+local scoreText = display.newText("Score: " .. score, 10, 20, native.systemFont, 18) 
 local fireSound = audio.loadSound("fire.wav") -- звук выстрела
 local hitSound = audio.loadSound("hit.wav") -- звук попадания
 audio.setVolume(0.0007, { channel = 1 })
+
+
 -- Функция создания игрока
 local function createPlayer()
     player = display.newImageRect("player.png", 35, 35)
     player.x = display.contentCenterX
     player.y = display.contentHeight - 50 -- начальные координаты игрока
     player.isAlive = true -- флаг, указывающий, жив ли игрок
+    physics.addBody(player, "kinematic", { radius = 25 })
+    --player.gravityScale = 0
+    player.isSensor = true
+    player.isPlayer = true
 end
 
 -- Функция создания инопланетных кораблей
@@ -55,7 +62,7 @@ Runtime:addEventListener("touch", movePlayer) -- добавляем обрабо
 local function createBullet()
     local bullet = display.newImageRect("bullet.png", 10, 20)
     bullet.x = player.x
-    bullet.y = player.y - 20
+    bullet.y = player.y - 30
     bullet.isBullet = true
     physics.addBody(bullet, "dynamic", { radius = 25 })
     bullet.gravityScale = 0
@@ -64,6 +71,19 @@ local function createBullet()
 end
 
 -- Функция обработки столкновения
+local function removeEnemy(enemy)
+    for i = #enemies, 1, -1 do
+        if (enemies[i] == enemy) then
+            table.remove(enemies, i)
+            score = score + 10 -- увеличиваем очки игрока при уничтожении корабля
+            scoreText.text = "Score: " .. score
+            audio.play(hitSound)
+            break
+        end
+    end
+    display.remove(enemy)
+end
+
 local function onCollision(event)
     if (event.phase == "began") then
         local obj1 = event.object1
@@ -71,13 +91,10 @@ local function onCollision(event)
         if ((obj1.isBullet and obj2.isEnemy) or (obj1.isEnemy and obj2.isBullet)) then
             display.remove(obj1)
             display.remove(obj2)
-            for i = #enemies, 1, -1 do
-                if (enemies[i] == obj1 or enemies[i] == obj2) then
-                    table.remove(enemies, i)
-                    score = score + 10 -- увеличиваем очки игрока при уничтожении корабля
-                    audio.play(hitSound)
-                    break
-                end
+            if (obj1.isEnemy) then
+                removeEnemy(obj1)
+            elseif (obj2.isEnemy) then
+                removeEnemy(obj2)
             end
             for i = #bullets, 1, -1 do
                 if (bullets[i] == obj1 or bullets[i] == obj2) then
@@ -86,7 +103,15 @@ local function onCollision(event)
                 end
             end
         elseif ((obj1.isPlayer and obj2.isEnemy) or (obj1.isEnemy and obj2.isPlayer)) then
-            lives = lives - 1 -- уменьшаем количество жизней игрока при столкновении с кораблем
+            lives = lives - 1 -- уменьшаем количество жизней игрока при пропуске корабля
+            livesText.text = "Lives: " .. lives 
+
+            if (obj1.isPlayer and obj2.isEnemy) then
+                removeEnemy(obj2)
+            elseif (obj1.isEnemy and obj2.isPlayer) then
+                removeEnemy(obj1)
+            end
+
             if (lives <= 0) then
                 player.isAlive = false -- игрок погиб
                 -- здесь может быть код для окончания игры
@@ -134,15 +159,15 @@ local function gameLoop()
     end
 end
 
--- Функция обработки нажатия на экран или клавишу
+-- Функция выпуска пуль
 local function onFire()
     
     if (player.isAlive) then
-        timer.performWithDelay(100,createBullet(),1)
+        timer.performWithDelay(250,createBullet(),1) 
         
     end
 end
-timer.performWithDelay(250,onFire,0)
+timer.performWithDelay(550,onFire,0)
 -- Функция обновления интерфейса игры
 local function updateUI()
     
