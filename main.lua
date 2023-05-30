@@ -3,6 +3,7 @@ local physics = require("physics")
 physics.start()
 local player -- игрок
 local bullets = {} -- массив пуль
+local bulletsE = {} -- массив пуль
 local enemies = {} -- массив инопланетных кораблей
 local background = display.newImageRect( "background.png",1920,1080 )
 background.x = display.contentCenterX
@@ -17,6 +18,36 @@ local scoreText = display.newText("Score: " .. score, 10, 20, native.systemFont,
 local fireSound = audio.loadSound("fire.wav") -- звук выстрела
 local hitSound = audio.loadSound("hit.wav") -- звук попадания
 audio.setVolume(0.0007, { channel = 1 })
+local shield = {} -- массив объектов защиты
+local shieldWidth = 30
+local shieldHeight = 20
+
+local enemyMoveDirection = 1 -- начинаем движение вправо
+local enemyMoveCount = 0 -- счетчик для изменения направления движения
+local enemyMoveLimit = 4 -- сколько раз нужно изменить направление, прежде чем спуститься на несколько пикселей вниз
+local enemyMoveDown = false -- спускать врагов вниз или нет
+local enemyMoveDownCount = 0 -- счетчик для спуска врагов вниз
+local enemyMoveDownLimit = 10 -- сколько пикПродолжение кода:
+
+-- переменные для стрельбы врагов
+local enemyShootTimer = nil -- таймер для стрельбы врагов
+local enemyShootDelay = 1000 -- задержка между выстрелами врагов (в миллисекундах)
+
+
+-- Функция создания объектов защиты
+local function createShields()
+    local shieldCount = 4 -- количество объектов защиты
+    local shieldMargin = 100 -- расстояние между объектами защиты
+
+    for i = 1, shieldCount do
+        local shieldX = (display.contentWidth / shieldCount) * i - (display.contentWidth / shieldCount / 2) -- расположение объекта защиты по оси X
+        local shieldY = display.contentHeight - 80 -- расположение объекта защиты по оси Y
+        shield[i] = display.newRect(shieldX, shieldY, shieldWidth, shieldHeight)
+        shield[i].isShield = true -- установка флага, указывающего на то, что объект является защитой
+        physics.addBody(shield[i], "static") -- добавление физического тела к объекту защиты
+    end
+end
+
 
 
 -- Функция создания игрока
@@ -45,6 +76,8 @@ local function createEnemies()
 end
 
 
+
+
 local function movePlayer(event)
     if (event.phase == "moved") then
         local x = event.x -- позиция пальца по оси X
@@ -69,6 +102,22 @@ local function createBullet()
     table.insert(bullets, bullet)
     audio.play(fireSound)
 end
+
+local function createBulletE()
+    for i = 1, #enemies do
+        local enemy = enemies[i]
+        local bulletE = display.newImageRect("bullet.png", 10, 20)
+        bulletE.x = enemy.x
+        bulletE.y = enemy.y + 50
+        bulletE.isBulletE = true
+        bulletE.isSensor = true
+        physics.addBody(bulletE, "kinematic", { radius = 25 })
+        bulletE.gravityScale = 0
+        table.insert(bulletsE, bulletE)
+        audio.play(fireSound)
+    end
+end
+
 
 -- Функция обработки столкновения
 local function removeEnemy(enemy)
@@ -113,8 +162,48 @@ local function onCollision(event)
             end
 
             if (lives <= 0) then
-                player.isAlive = false -- игрок погиб
+                --player.isAlive = false -- игрок погиб
+                lives = 3
+                livesText.text = "Lives: " .. lives 
                 -- здесь может быть код для окончания игры
+            end
+        elseif (obj1.isBullet and obj2.isShield) then
+            display.remove(obj1)
+            for i = #bullets, 1, -1 do
+                if (bullets[i] == obj1) then
+                    table.remove(bullets, i)
+                    break
+                end
+            end
+            obj2.alpha = obj2.alpha - 0.1 -- уменьшаем прозрачность объекта защиты
+            if (obj2.alpha <= 0) then
+                physics.removeBody(obj2) -- удаляем физическое тело объекта защиты
+                display.remove(obj2) -- удаляем объект защиты
+                for i = #shield, 1, -1 do
+                    if (shield[i] == obj2) then
+                        table.remove(shield, i)
+                        break
+                    end
+                end
+            end
+        elseif (obj1.isShield and obj2.isBullet) then
+            display.remove(obj2)
+            for i = #bullets, 1, -1 do
+                if (bullets[i] == obj2) then
+                    table.remove(bullets, i)
+                    break
+                end
+            end
+            obj1.alpha = obj1.alpha - 0.1 -- уменьшаем прозрачность объекта защиты
+            if (obj1.alpha <= 0) then
+                physics.removeBody(obj1) -- удаляем физическое тело объекта защиты
+                display.remove(obj1) -- удаляем объект защиты
+                for i = #shield, 1, -1 do
+                    if (shield[i] == obj1) then
+                        table.remove(shield, i)
+                        break
+                    end
+                end
             end
         end
     end
@@ -132,12 +221,32 @@ local function updateBullets()
     end
 end
 
+local function updateBulletsE()
+    for i = #bulletsE, 1, -1 do
+        local bulletE = bulletsE[i]
+        bulletE.y = bulletE.y + 2 -- двигаем пулю вниз
+        if (bulletE.y < 20) then
+            display.remove(bulletE)
+            table.remove(bulletsE, i)
+        end
+    end
+end
+
+
+
+
 -- Функция обновления инопланетных кораблей
 local function updateEnemies()
     for i = #enemies, 1, -1 do
         local enemy = enemies[i]
-        enemy.x = enemy.x + math.sin(enemy.y * 0.05) * 3 -- двигаем корабль вправо-влево
-        enemy.y = enemy.y + 0.3 -- двигаем корабль вниз
+
+        --if (enemyMoveDown) then
+            --enemy.y = enemy.y + 10
+        --end
+
+        enemy.x = enemy.x + math.sin(enemy.y * 0.05)  -- двигаем корабль вправо-влево
+        enemy.y = enemy.y + 0.1 -- двигаем корабль вниз
+
         if (enemy.y > display.contentHeight + 50) then
             display.remove(enemy)
             table.remove(enemies, i)
@@ -148,35 +257,43 @@ local function updateEnemies()
                 -- здесь может быть код для окончания игры
             end
         end
+
     end
+    if math.random(1, 100) == 1 then -- вероятность выстрела = 1%
+            --shootBullet(enemy) -- запускаем выстрел для данного врага
+        end
+
+
+
 end
 
 -- Функция обновления игры
 local function gameLoop()
     if (player.isAlive) then
         updateBullets()
+        updateBulletsE()
         updateEnemies()
     end
 end
 
 -- Функция выпуска пуль
 local function onFire()
-    
+    if math.random(1, 100) >= 50 then -- вероятность выстрела = 1%
+            createBulletE(enemy) -- запускаем выстрел для данного врага
+        end
     if (player.isAlive) then
         timer.performWithDelay(250,createBullet(),1) 
-        
+        --timer.performWithDelay(250,createBulletE(),1)
     end
 end
 timer.performWithDelay(550,onFire,0)
--- Функция обновления интерфейса игры
-local function updateUI()
-    
-end
+
 
 -- Функция инициализации игры
 local function initGame()
     createPlayer()
     createEnemies()
+    createShields()
     Runtime:addEventListener("collision", onCollision)
     Runtime:addEventListener("enterFrame", gameLoop)
    --Runtime:addEventListener("touch", onFire)
