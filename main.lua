@@ -97,7 +97,7 @@ local function createBullet()
     bullet.x = player.x
     bullet.y = player.y - 30
     bullet.isBullet = true
-    physics.addBody(bullet, "dynamic", { radius = 25 })
+    physics.addBody(bullet, "dynamic")
     bullet.gravityScale = 0
     table.insert(bullets, bullet)
     audio.play(fireSound)
@@ -106,12 +106,11 @@ end
 local function createBulletE()
     for i = 1, #enemies do
         local enemy = enemies[i]
-        local bulletE = display.newImageRect("bullet.png", 10, 20)
+        local bulletE = display.newImageRect("bulletE.png", 10, 20)
         bulletE.x = enemy.x
         bulletE.y = enemy.y + 50
         bulletE.isBulletE = true
-        bulletE.isSensor = true
-        physics.addBody(bulletE, "kinematic", { radius = 25 })
+        physics.addBody(bulletE, "dynamic")
         bulletE.gravityScale = 0
         table.insert(bulletsE, bulletE)
         audio.play(fireSound)
@@ -133,10 +132,45 @@ local function removeEnemy(enemy)
     display.remove(enemy)
 end
 
+local function removeEnemyBullet(bulletE)
+    for i = #bulletE, 1, -1 do
+        if (bulletE[i] == enemy) then
+            table.remove(bulletE, i)
+            score = score - 10 -- увеличиваем очки игрока при уничтожении корабля
+            scoreText.text = "Score: " .. score
+            audio.play(hitSound)
+            break
+        end
+    end
+    display.remove(BulletE)
+end
+
+
+
 local function onCollision(event)
     if (event.phase == "began") then
         local obj1 = event.object1
         local obj2 = event.object2
+        if ((obj1.isBullet and obj2.isBulletE) or (obj1.isBulletE and obj2.isBullet)) then
+
+            display.remove(obj1)
+            display.remove(obj2)
+
+        for i = #bullets, 1, -1 do
+                if (bullets[i] == obj1 or bullets[i] == obj2) then
+                    table.remove(bullets, i)
+                    break
+                end
+            end
+
+        for j = #bulletsE, 1, -1 do
+                if (bulletsE[j] == obj1) then
+                    table.remove(bulletsE, j)
+                    break
+                end
+            end
+
+        end
         if ((obj1.isBullet and obj2.isEnemy) or (obj1.isEnemy and obj2.isBullet)) then
             display.remove(obj1)
             display.remove(obj2)
@@ -157,8 +191,22 @@ local function onCollision(event)
 
             if (obj1.isPlayer and obj2.isEnemy) then
                 removeEnemy(obj2)
+                for j = #bulletsE, 1, -1 do
+
+                if (bulletsE[j] == obj1) then
+                    table.remove(bulletsE, j)
+                    break
+                end
+            end
             elseif (obj1.isEnemy and obj2.isPlayer) then
                 removeEnemy(obj1)
+                for j = #bulletsE, 1, -1 do
+
+                if (bulletsE[j] == obj1) then
+                    table.remove(bulletsE, j)
+                    break
+                end
+            end
             end
 
             if (lives <= 0) then
@@ -209,6 +257,112 @@ local function onCollision(event)
     end
 end
 
+local function onCollisionE(event)
+    if (event.phase == "began") then
+        local obj1 = event.object1
+        local obj2 = event.object2
+        --if ((obj1.isBulletE and obj2.isPlayer) or (obj1.isPlayer and obj2.isBulletE)) then
+        --    display.remove(obj1)
+        --    display.remove(obj2)
+        --    for i = #bulletsE, 1, -1 do
+        --        if (bulletsE[i] == obj1 or bulletsE[i] == obj2) then
+        --            table.remove(bulletsE, i)
+        --            break
+        --        end
+        --    end
+        if ((obj1.isPlayer and obj2.isBulletE) or (obj1.isBulletE and obj2.isPlayer)) then
+            lives = lives - 1 -- уменьшаем количество жизней игрока при пропуске корабля
+            livesText.text = "Lives: " .. lives
+
+            if (obj1.isPlayer and obj2.isBulletE) then
+                display.remove(obj2)
+            for i = #bulletsE, 1, -1 do
+                if (bulletsE[i] == obj2) then
+                    table.remove(bulletsE, i)
+                    break
+                end
+            end
+            elseif (obj1.isBulletE and obj2.isPlayer) then
+                display.remove(obj1)
+            for i = #bulletsE, 1, -1 do
+                if (bulletsE[i] == obj1) then
+                    table.remove(bulletsE, i)
+                    break
+                end
+            end
+            end
+
+            if (lives <= 0) then
+                --player.isAlive = false -- игрок погиб
+                lives = 3
+                livesText.text = "Lives: " .. lives
+                -- здесь может быть код для окончания игры
+            end
+        elseif (obj1.isBulletE and obj2.isShield) then
+            display.remove(obj1)
+            for i = #bulletsE, 1, -1 do
+                if (bulletsE[i] == obj1) then
+                    table.remove(bulletsE, i)
+                    break
+                end
+            end
+            obj2.alpha = obj2.alpha - 0.1 -- уменьшаем прозрачность объекта защиты
+            if (obj2.alpha <= 0) then
+                physics.removeBody(obj2) -- удаляем физическое тело объекта защиты
+                display.remove(obj2) -- удаляем объект защиты
+                for i = #shield, 1, -1 do
+                    if (shield[i] == obj2) then
+                        table.remove(shield, i)
+                        break
+                    end
+                end
+            end
+        elseif (obj1.isShield and obj2.isBulletE) then
+            display.remove(obj2)
+            for i = #bulletsE, 1, -1 do
+                if (bulletsE[i] == obj2) then
+                    table.remove(bulletsE, i)
+                    break
+                end
+            end
+            obj1.alpha = obj1.alpha - 0.1 -- уменьшаем прозрачность объекта защиты
+            if (obj1.alpha <= 0) then
+                physics.removeBody(obj1) -- удаляем физическое тело объекта защиты
+                display.remove(obj1) -- удаляем объект защиты
+                for i = #shield, 1, -1 do
+                    if (shield[i] == obj1) then
+                        table.remove(shield, i)
+                        break
+                    end
+                end
+            end
+        end
+    end
+end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 -- Функция обновления пуль
 local function updateBullets()
     for i = #bullets, 1, -1 do
@@ -241,7 +395,7 @@ local function updateEnemies()
         local enemy = enemies[i]
 
         --if (enemyMoveDown) then
-            --enemy.y = enemy.y + 10
+        --enemy.y = enemy.y + 10
         --end
 
         enemy.x = enemy.x + math.sin(enemy.y * 0.05)  -- двигаем корабль вправо-влево
@@ -259,9 +413,6 @@ local function updateEnemies()
         end
 
     end
-    if math.random(1, 100) == 1 then -- вероятность выстрела = 1%
-            --shootBullet(enemy) -- запускаем выстрел для данного врага
-        end
 
 
 
@@ -295,6 +446,7 @@ local function initGame()
     createEnemies()
     createShields()
     Runtime:addEventListener("collision", onCollision)
+    Runtime:addEventListener("collision", onCollisionE)
     Runtime:addEventListener("enterFrame", gameLoop)
    --Runtime:addEventListener("touch", onFire)
 end
