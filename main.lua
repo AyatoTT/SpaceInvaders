@@ -4,16 +4,17 @@ physics.start()
 local player -- игрок
 local bullets = {} -- массив пуль
 local enemies = {} -- массив инопланетных кораблей
-local background = display.newImage( "background.png" )
+local background = display.newImageRect( "background.png",1920,1080 )
 background.x = display.contentCenterX
 background.y = display.contentCenterY
+background.width = display.contentWidth + 250
+background.height = display.contentHeight
 local score = 0 -- очки игрока
 local lives = 3 -- количество жизней игрока
 local livesText = display.newText("Lives: " .. lives, display.contentWidth - 80, 20, native.systemFont, 20)
 livesText:setFillColor(1, 1, 1) -- установка цвета текста
 local fireSound = audio.loadSound("fire.wav") -- звук выстрела
 local hitSound = audio.loadSound("hit.wav") -- звук попадания
-
 audio.setVolume(0.0007, { channel = 1 })
 -- Функция создания игрока
 local function createPlayer()
@@ -40,13 +41,12 @@ end
 local function movePlayer(event)
     if (event.phase == "moved") then
         local x = event.x -- позиция пальца по оси X
-        local y= player.y -- позиция игрока по оси Y
-        if (x > player.width / 2 and x < display.contentWidth - player.width / 2) then -- проверяем, не выходит ли игрок за границы экрана
+        local y = event.y -- позиция пальца по оси Y
+        if (x > player.width / 2 - 120 and x < display.contentWidth + 120 - player.width / 2 and y > player.height / 2 and y < display.contentHeight - player.height / 2) then -- проверяем, не выходит ли игрок за границы экрана
             transition.moveTo(player, { x = x, y = y, time = 0 }) -- перемещаем игрока в позицию пальца
         end
     end
 end
-
 Runtime:addEventListener("touch", movePlayer) -- добавляем обработчик события перемещения пальца по экрану
 
 
@@ -119,7 +119,7 @@ local function updateEnemies()
             lives = lives - 1 -- уменьшаем количество жизней игрока при пропуске корабля
             livesText.text = "Lives: " .. lives
             if (lives <= 0) then
-                player.isAlive = false -- игрок погиб
+                --player.isAlive = false -- игрок погиб
                 -- здесь может быть код для окончания игры
             end
         end
@@ -157,4 +157,15 @@ local function initGame()
    --Runtime:addEventListener("touch", onFire)
 end
 
+
+local function checkEnemies()
+    
+    if #enemies == 0 then -- если количество врагов равно нулю
+      -- запускаем новый уровень
+      createEnemies()
+    end
+end
+
+Runtime:addEventListener("enterFrame", checkEnemies)
 initGame()
+
